@@ -9,6 +9,10 @@ import torch.nn as nn
 from torch.optim import lr_scheduler
 from torch.backends import cudnn
 from torch.utils.data import DataLoader
+
+import torchvision.datasets as dset
+import torchvision.transforms as transforms
+
 from torch.utils.data.distributed import DistributedSampler
 
 import torchvision
@@ -17,7 +21,7 @@ from models.model import BaseModel
 from models.FocalLoss import FocalLoss
 from models.LabelSmoothing import LabelSmoothing
 from models.OLS import OnlineLabelSmoothing
-from ImageNetLoad import ImageNet
+# from ImageNetLoad import ImageNet
 from utils import MultiLossAverageMeter, AverageMeter, accuracy
 from plot_result import plot_result
 
@@ -30,6 +34,7 @@ parser.add_argument('--loss', default=['ce'], nargs='+', type=str)
 parser.add_argument('--loss_w', default=[1.], nargs='+', type=float)
 parser.add_argument('--smoothing', default=0.1, type=float)
 parser.add_argument('-c', '--num_classes', default=1000, type=int)
+parser.add_argument('-ich', '--inp_chans', default=3, type=int)
 parser.add_argument('-p', '--pool_type', default='avg', type=str)
 parser.add_argument('--metric', default='linear', type=str)
 parser.add_argument('--down', default=0, type=int)
@@ -212,8 +217,14 @@ if __name__ == '__main__':
     }
 
     # dataloader
-    trainset = ImageNet(mode='train')
-    valset = ImageNet(mode='val')
+    # trainset = ImageNet(mode='train')
+    # valset = ImageNet(mode='val')
+
+    root = './data'
+    trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0,))])
+    # if not exist, download mnist dataset
+    trainset = dset.MNIST(root=root, train=True, transform=trans, download=True)
+    valset = dset.MNIST(root=root, train=False, transform=trans, download=True)
 
     # dataloader
     train_sampler = None
@@ -236,6 +247,7 @@ if __name__ == '__main__':
     # model
     model = BaseModel(model_name=args.model_name,
                       num_classes=args.num_classes,
+                      inp_chans=args.inp_chans,
                       pretrained=args.pretrained)
     
     if args.resume:
@@ -282,11 +294,12 @@ if __name__ == '__main__':
     loss_str = '_'.join(args.loss)
     if 'ls' in args.loss:
         loss_str += str(args.smoothing)
-    savepath = os.path.join(args.savepath, '{}_{}_{}_{}_{}'.format(args.model_name,
+    savepath = os.path.join(args.savepath, '{}_{}_{}_{}_{}_{}'.format(args.model_name,
                                                                 args.pool_type,
                                                                 args.metric,
                                                                 str(args.down),
-                                                                loss_str))
+                                                                loss_str,
+                                                                str(args.inp_chans)))
     # AMP
     if args.amp:
         scaler = torch.cuda.amp.GradScaler()
